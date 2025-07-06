@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <title>Cadastro Firebase</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <div class="container">
+    <h1>Criar Conta</h1>
+ 
+    <input type="text" id="name" placeholder="Seu nome" required />
+    <input type="email" id="email" placeholder="Email" required />
+    <input type="password" id="password" placeholder="Senha" required />
+     
+    <label>
+      <input type="checkbox" id="show-password" />
+      Mostrar senha
+    </label>
+
+    <button onclick="signup()">Cadastrar</button>
+    <p>Já tem conta? <a href="index.html">Faça login</a></p>
+
+    <p id="message"></p>
+  </div>
+
+  <!-- Firebase SDKs -->
+  <script src="https://www.gstatic.com/firebasejs/10.3.1/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.3.1/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.3.1/firebase-firestore-compat.js"></script>
+  
+  <!-- Script principal -->
+  <script src="script.js"></script>
+</body>
+</html>

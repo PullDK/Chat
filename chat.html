@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <title>Chat Firebase</title>
+  <link rel="stylesheet" href="style.css" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
+</head>
+<body>
+  <div class="chat-container">
+    <header>
+      <span>🔥 Sala de Chat</span>
+      <div class="user-info">
+        <span id="user-name"></span>
+        <button onclick="logout()">Sair</button>
+      </div>
+    </header>
+
+    <div id="chat-box" class="chat-box"></div>
+
+    <form id="chat-form" onsubmit="sendMessage(event)">
+      <input type="text" id="message-input" placeholder="Digite sua mensagem..." autocomplete="off" required />
+      <button type="submit">Enviar</button>
+    </form>
+  </div>
+
+  <!-- Firebase SDK -->
+  <script src="https://www.gstatic.com/firebasejs/10.3.1/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.3.1/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.3.1/firebase-firestore-compat.js"></script>
+
+  <script>
+    const firebaseConfig = {
+      apiKey: "AIzaSyDQT2Ym09pLHBkXbCsGnec47DDtzS3toS0",
+      authDomain: "sistemadelogin-8cab1.firebaseapp.com",
+      projectId: "sistemadelogin-8cab1",
+      appId: "1:668546945664:web:171cd892aeeac6c30b0c65"
+    };
+
+    firebase.initializeApp(firebaseConfig);
+    const auth = firebase.auth();
+    const db = firebase.firestore();
+
+    const userNameEl = document.getElementById("user-name");
+    const chatBox = document.getElementById("chat-box");
+
+    let currentUser = null;
+    let replyTo = null; // Guarda a mensagem que está sendo respondida
+
+    // Elemento para mostrar a resposta acima do input
+    function showReplyingTo(data, id) {
+      let replyingDiv = document.getElementById("replying-to");
+      if (!replyingDiv) {
+        replyingDiv = document.createElement("div");
+        replyingDiv.id = "replying-to";
+        replyingDiv.className = "replying-to";
+        const form = document.getElementById("chat-form");
+        form.parentNode.insertBefore(replyingDiv, form);
+      }
+      replyingDiv.innerHTML = `
+        Respondendo a <b>${data.name || "Anônimo"}</b>: 
+        <span style="color:#555">${data.text}</span>
+        <button class="cancel-reply" title="Cancelar" onclick="cancelReply()" type="button">✕</button>
+      `;
+      replyingDiv.style.display = "flex";
+    }
+
+    function cancelReply() {
+      replyTo = null;
+      const replyingDiv = document.getElementById("replying-to");
+      if (replyingDiv) replyingDiv.style.display = "none";
+    }
+
+    auth.onAuthStateChanged(user => {
+      if (!user) return window.location.href = "index.html";
+      currentUser = user;
+      userNameEl.textContent = user.displayName || "Usuário";
+
+      db.collection("messages")
+        .orderBy("timestamp")
+        .limit(100)
+        .onSnapshot(snapshot => {
+          chatBox.innerHTML = "";
+          snapshot.forEach(doc => {
+            const data = doc.data();
+            const isOwn = data.uid === currentUser.uid;
+            const messageEl = document.createElement("div");
+            messageEl.classList.add("message");
+            messageEl.classList.add(isOwn ? "own" : "other");
+
+            // Mostra a mensagem original se for uma resposta
+            let replyHtml = "";
+            if (data.replyTo) {
+              replyHtml = `
+                <div class="replying-to" style="background:#f4f8ff;padding:4px 10px;margin-bottom:4px;font-size:12px;text-align:left;">
+                  <div style="font-weight:bold;color:#007bff;text-align:left;">${data.replyTo.name || "Anônimo"}</div>
+                  <div style="color:#555;text-align:left;">${data.replyTo.text}</div>
+                </div>
+              `;
+            }
+
+            messageEl.innerHTML = `
+              <span class="sender">${data.name || "Anônimo"}</span>
+              ${replyHtml}
+              <div class="text">${data.text}</div>
+            `;
+            chatBox.appendChild(messageEl);
+
+            messageEl.addEventListener("click", function(e) {
+              // Só botão esquerdo
+              if (e.button !== 0) return;
+              // Evita múltiplos botões
+              if (messageEl.parentNode.querySelector(".reply-btn")) return;
+
+              const replyBtn = document.createElement("button");
+              replyBtn.className = "reply-btn";
+              replyBtn.title = "Responder";
+              replyBtn.textContent = "↩";
+              replyBtn.type = "button";
+              replyBtn.onclick = function(ev) {
+                ev.stopPropagation();
+                replyMessage(doc.id);
+              };
+
+              // Cria um wrapper para alinhar mensagem e botão lado a lado
+              const wrapper = document.createElement("div");
+              wrapper.className = "message-wrapper";
+              messageEl.parentNode.insertBefore(wrapper, messageEl);
+              wrapper.appendChild(messageEl);
+              wrapper.appendChild(replyBtn);
+
+              // Remove o botão e wrapper se clicar fora
+              function removeBtn(ev) {
+                if (!wrapper.contains(ev.target)) {
+                  if (replyBtn.parentNode) replyBtn.parentNode.removeChild(replyBtn);
+                  // Move messageEl de volta para chatBox
+                  chatBox.insertBefore(messageEl, wrapper);
+                  wrapper.remove();
+                  document.removeEventListener("mousedown", removeBtn);
+                }
+              }
+              document.addEventListener("mousedown", removeBtn);
+            });
+          });
+          chatBox.scrollTop = chatBox.scrollHeight;
+        });
+    });
+
+    // Função chamada ao clicar no botão de resposta
+    window.replyMessage = function(id) {
+      db.collection("messages").doc(id).get().then(doc => {
+        if (doc.exists) {
+          replyTo = { id: doc.id, ...doc.data() };
+          showReplyingTo(doc.data(), doc.id);
+          document.getElementById("message-input").focus();
+        }
+      });
+    };
+
+    window.cancelReply = cancelReply;
+
+    function logout() {
+      auth.signOut().then(() => {
+        window.location.href = "index.html";
+      });
+    }
+
+    function sendMessage(e) {
+      e.preventDefault();
+      const input = document.getElementById("message-input");
+      const text = input.value.trim();
+      if (!text) return;
+ 
+      // Inclui info de resposta se houver
+      let msgData = {
+        text,
+        name: currentUser.displayName || "Anônimo",
+        uid: currentUser.uid,
+        timestamp: firebase.firestore.FieldValue.serverTimestamp()
+      };
+      if (replyTo) {
+        msgData.replyTo = {
+          id: replyTo.id,
+          name: replyTo.name,
+          text: replyTo.text
+        };
+      }
+
+      db.collection("messages").add(msgData);
+
+      input.value = "";
+      cancelReply();
+    }
+  </script>
+</body>
+</html>
